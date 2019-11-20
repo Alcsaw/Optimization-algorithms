@@ -17,17 +17,18 @@ class TabuSearch:
     rounds_for_tabu_list = 3    # parameter that defines how many rounds an item should remain in tabu_list
     supported_weight = 200
     best_utility = 0
+    best_weight = 0
     best_solution = []
     stop_after = 50     # stop condition: repeats the algorithm for stop_after times
     # TODO: add another stop condition for number of rounds without best_solution change. E.g. stop after 5 rounds
     #   without changing the best_solution
 
-    def __init__(self, items_weights, items_values, supported_weight=200, stop_after=3, rounds_for_tabu_list=3):
+    def __init__(self, items_weights, items_values, supported_weight=200, stop_after=50, rounds_for_tabu_list=3):
         self.items_weights = items_weights
         self.items_values = items_values
         self.supported_weight = supported_weight
         self.stop_after = stop_after
-        self.rounds_for_tabu_list - rounds_for_tabu_list
+        self.rounds_for_tabu_list = rounds_for_tabu_list
 
 
     """
@@ -100,23 +101,29 @@ class TabuSearch:
     #     # for item in to_remove:
     #     #     neighbors.remove(item)
     #
-    # def calc_utility(self, item_combination: list) -> int:
-    #     """
-    #     Computes the utility of a given combination of items
-    #
-    #     :param item_combination: list of 0/1 indicating if the item at each index is (1) in the knapsack or (0) not
-    #     :return: utility - a number that is the sum of the utility of each item in the knapsack for a given combination
-    #     """
-    #     utility = 0
-    #     for index, item in enumerate(item_combination):
-    #         if item == 1:
-    #             utility = utility + self.item_values[index]
-    #     return utility
+    def calc_utility(self, item_combination: list) -> int:
+        """
+        Computes the utility of a given combination of items
+
+        :param item_combination: list of 0/1 indicating if the item at each index is (1) in the knapsack or (0) not
+        :return: utility - a number that is the sum of the utility of each item in the knapsack for a given combination
+        """
+        utility = 0
+        for index, item in enumerate(item_combination):
+            if item == 1:
+                utility = utility + self.items_values[index]
+        return utility
+
+    def is_in_tabu_list(self, index_to_verify):
+        for index in self.tabu_list:
+            if index[0] == index_to_verify:
+                return True
+        return False
 
     def select_neighbor(self, neighbors: list):
         greater_utility_in_neighbors = 0
+        selected_neighbor_weight = 0
         selected_neighbor = 0
-        tabu_index = 0
 
         for neighbor_index, neighbor in enumerate(neighbors):
             # walks for each neighbor and filter the valid ones (supported weight) while also computing its utility
@@ -124,6 +131,7 @@ class TabuSearch:
             current_utility = 0
             valid_neighbor = True
 
+            # Finds out the current neighbor's weight and utility
             for index, item in enumerate(neighbor[0]):
                 if item == 1:
                     current_weight = current_weight + self.items_weights[index]
@@ -136,18 +144,29 @@ class TabuSearch:
                 if current_utility > self.best_utility:
                     # aspiration criteria: it doesn't matter if the neighbor was in the tabu list, because its utility
                     # is the best so far
+                    print("Aspiration criteria achieved for", neighbor[0])
+                    print("best utility was", self.best_utility, "and this solution got", current_utility)
                     self.best_utility = current_utility
+                    self.best_weight = current_weight
                     self.best_solution = neighbor[0]
 
                     # so it's the best utility and the selected_neighbor
                     greater_utility_in_neighbors = current_utility
+                    selected_neighbor_weight = current_weight
                     selected_neighbor = neighbor
 
-                elif current_utility > greater_utility_in_neighbors and neighbor[1] not in self.tabu_list:
+                elif current_utility > greater_utility_in_neighbors and not self.is_in_tabu_list(neighbor[1]):
                     # normal cases need to respect the tabu list
                     greater_utility_in_neighbors = current_utility
+                    selected_neighbor_weight = current_weight
                     selected_neighbor = neighbor
 
+        if selected_neighbor == 0:
+            print("NO neighbor could be selected. Is tabu list full?")
+            print("tabu_list: ", self.tabu_list)
+
+        print("selected neighbor's utility: ", greater_utility_in_neighbors)
+        print("selected neighbor's weight: ", selected_neighbor_weight)
         # and return only the item combination of the neighbor and its changed index so we can append it to the tabu
         # list later
         return selected_neighbor
@@ -160,9 +179,19 @@ class TabuSearch:
         total_weight = 0
         initial_solution = []
         for item in self.items_weights:
-            initial_solution.append(0 if total_weight >= self.supported_weight else 1)
-            total_weight += item
+            if (total_weight + item) > self.supported_weight:
+                initial_solution.append(0)
 
+            else:
+                initial_solution.append(1)
+                total_weight += item
+
+        print("Initial solution: ", initial_solution)
+        print("Initial weight: ", total_weight)
+        self.best_utility = self.calc_utility(initial_solution)
+        self.best_weight = total_weight
+        self.best_solution = initial_solution
+        print("Initial utility: ", self.best_utility)
         return initial_solution
 
     def compute(self):
@@ -173,7 +202,7 @@ class TabuSearch:
         for i in range(self.stop_after):
             # starts the iteration process to get the best solution
 
-            if len(self.tabu_list) and (i - self.tabu_list[0][0] > self.rounds_for_tabu_list):
+            if len(self.tabu_list) and (i - self.tabu_list[0][1] > self.rounds_for_tabu_list):
                 # checks if the oldest item in the tabu_list is already old enough to be removed from it and remove it
                 # Just a reminder: at each iteration, only 1 item is added to the tabu list, so we only need to
                 # check the first one of the list
@@ -190,14 +219,43 @@ class TabuSearch:
             self.tabu_list.append((selected_neighbor[1], i))
             print("tabu_list: ", self.tabu_list)
             print("best solution so far: ", self.best_solution)
-            print("best solution's utility: ", self.best_utility)
+            print("\twith utility: ", self.best_utility)
         return self.best_solution
+
+
+def get_items(filename):
+    file = "./instances_01_KP/" + filename
+    items_weights = []
+    items_values = []
+    with open(file, "r") as reader:
+        print("Reading file:")
+        line = reader.readline()
+
+        while line != "":
+            # print(line)
+            weigth, value = line.split(" ")
+            items_weights.append(int(weigth))
+            items_values.append(int(value))
+            line = reader.readline()
+
+    return items_weights, items_values
 
 
 def main():
 
-    items_weights = [64, 12, 22, 30, 50, 4, 2, 7, 14, 21, 90, 55, 44, 33, 22, 11]
-    items_values = [70, 20, 20, 40, 2, 5, 8, 8, 9, 20, 30, 40, 50, 44, 55, 16]
+    # items_weights = [64, 12, 22, 30, 50, 4, 2, 7, 14, 21, 90, 55, 44, 33, 22, 11]
+    # items_values = [70, 20, 20, 40, 2, 5, 8, 8, 9, 20, 30, 40, 50, 44, 55, 16]
+
+    # items_weights, items_values = get_items("low-dimensional/f1_l-d_kp_10_269")
+    # items_weights, items_values = get_items("low-dimensional/f2_l-d_kp_20_878")
+    items_weights, items_values = get_items("low-dimensional/f3_l-d_kp_4_20")
+
+    print("Inputed data:")
+    print("Items Weights:")
+    print(items_weights)
+    print("Items Values:")
+    print(items_values)
+    print("\n------------------------------------------------------------------------\n")
     tabu_search = TabuSearch(items_weights, items_values)
     tabu_search.compute()
 
