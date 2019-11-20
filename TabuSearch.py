@@ -195,9 +195,6 @@ class TabuSearch:
         return initial_solution
 
     def compute(self):
-        if len(self.items_weights) != len(self.items_values):
-            print("ERROR: invalid input. The length of items_weight is different of the the length of items_values")
-            return False
         current_solution = self.get_initial_solution()
         for i in range(self.stop_after):
             # starts the iteration process to get the best solution
@@ -227,18 +224,23 @@ def get_items(filename):
     file = "./instances_01_KP/" + filename
     items_weights = []
     items_values = []
+
     with open(file, "r") as reader:
         print("Reading file:")
+        line = reader.readline()
+        size_check, supported_weight = line.split(" ")
+        size_check = int(size_check)
+        supported_weight = int(supported_weight)
         line = reader.readline()
 
         while line != "":
             # print(line)
-            weigth, value = line.split(" ")
-            items_weights.append(int(weigth))
+            value, weight = line.split(" ")
+            items_weights.append(int(weight))
             items_values.append(int(value))
             line = reader.readline()
 
-    return items_weights, items_values
+    return size_check, supported_weight, items_weights, items_values
 
 
 def main():
@@ -246,17 +248,26 @@ def main():
     # items_weights = [64, 12, 22, 30, 50, 4, 2, 7, 14, 21, 90, 55, 44, 33, 22, 11]
     # items_values = [70, 20, 20, 40, 2, 5, 8, 8, 9, 20, 30, 40, 50, 44, 55, 16]
 
-    # items_weights, items_values = get_items("low-dimensional/f1_l-d_kp_10_269")
-    # items_weights, items_values = get_items("low-dimensional/f2_l-d_kp_20_878")
-    items_weights, items_values = get_items("low-dimensional/f3_l-d_kp_4_20")
+    # size_check, supported_weight, items_weights, items_values = get_items("low-dimensional/f1_l-d_kp_10_269")
+    # size_check, supported_weight, items_weights, items_values = get_items("low-dimensional/f2_l-d_kp_20_878")
+    # size_check, supported_weight, items_weights, items_values = get_items("low-dimensional/f3_l-d_kp_4_20")
+    size_check, supported_weight, items_weights, items_values = get_items("large_scale/knapPI_1_100_1000_1")
+    # size_check, supported_weight, items_weights, items_values = get_items("large_scale/knapPI_1_200_1000_1")
+    # size_check, supported_weight, items_weights, items_values = get_items("large_scale/knapPI_1_500_1000_1")
 
-    print("Inputed data:")
+    if not size_check == len(items_weights) == len(items_values):
+        print("ERROR while reading input file.\n\n\n\n\n")
+        return False
+
+    print("Inputted data:")
+    print("List size:", size_check)
+    print("Supported weight:", supported_weight)
     print("Items Weights:")
     print(items_weights)
     print("Items Values:")
     print(items_values)
     print("\n------------------------------------------------------------------------\n")
-    tabu_search = TabuSearch(items_weights, items_values)
+    tabu_search = TabuSearch(items_weights, items_values, supported_weight=supported_weight)
     tabu_search.compute()
 
     print("Best solution: ", tabu_search.best_solution)
